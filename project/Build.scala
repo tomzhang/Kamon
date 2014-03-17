@@ -63,7 +63,7 @@ object Build extends Build {
   lazy val kamonDashboard = Project("kamon-dashboard", file("kamon-dashboard"))
     .settings(basicSettings: _*)
     .settings(formatSettings: _*)
-    .settings(libraryDependencies ++= compile(akkaActor, akkaSlf4j, sprayRouting, sprayCan, sprayJson))
+    .settings(libraryDependencies ++= compile(akkaActor, akkaSlf4j, sprayRouting, sprayCan, sprayJson, jolokiaCore, jolokiaJvm))
     .dependsOn(kamonCore)
 
   lazy val kamonTestkit = Project("kamon-testkit", file("kamon-testkit"))

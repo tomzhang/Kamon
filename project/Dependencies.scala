@@ -13,6 +13,7 @@ object Dependencies {
   val playVersion     = "2.2.2"
   val aspectjVersion  = "1.7.4"
   val slf4jVersion    = "1.7.6"
+  val jolokiaVersion  = "1.2.0"
 
   val sprayJson       = "io.spray"                  %%  "spray-json"            % "1.2.5"
   val sprayJsonLenses = "net.virtual-void"          %%  "json-lenses"           % "0.5.3"
@@ -33,6 +34,8 @@ object Dependencies {
   val playTest        = "com.typesafe.play"         %%  "play-test"             % playVersion
   val slf4Api         = "org.slf4j"                 %   "slf4j-api"             % slf4jVersion
   val slf4nop         = "org.slf4j"                 %   "slf4j-nop"             % slf4jVersion
+  val jolokiaCore     = "org.jolokia"               %   "jolokia-core"          % jolokiaVersion
+  val jolokiaJvm      = "org.jolokia"               %   "jolokia-jvm"           % jolokiaVersion
 
 
 
