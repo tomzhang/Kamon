@@ -1,5 +1,55 @@
 'use strict';
 
+function JvmController($scope,$route) {
+    $scope.$route = $route;
+    $scope.message = 'This is JVM';
+
+}
+function SprayController($scope,$route) {
+    $scope.$route = $route;
+    $scope.message = 'This is Spray';
+}
+function PlayController($scope,$route) {
+    $scope.$route = $route;
+    $scope.message = 'This is Play';
+    $scope.widgets = [
+        {"id": 1, "title": "Errors", "type": "summary", "value": 3},
+        {"id": 2, "title": "Errors", "type": "summary", "value": 3},
+        {"id": 3, "title": "Errors", "type": "summary", "value": 3}
+    ];
+}
+
+function sortableController($scope) {
+    var tmpList = [];
+
+    for (var i = 1; i <= 6; i++){
+        tmpList.push({
+            text: 'Item ' + i,
+            value: i
+        });
+    }
+
+    $scope.list = tmpList;
+
+
+    $scope.sortingLog = [];
+
+    $scope.sortableOptions = {
+        update: function(e, ui) {
+            var logEntry = tmpList.map(function(i){
+                return i.value;
+            }).join(', ');
+            $scope.sortingLog.push('Update: ' + logEntry);
+        },
+        stop: function(e, ui) {
+            // this callback has the changed model
+            var logEntry = tmpList.map(function(i){
+                return i.value;
+            }).join(', ');
+            $scope.sortingLog.push('Stop: ' + logEntry);
+        }
+    };
+}
 /* Controllers */
 function graphicController1($scope) {
     $scope.exampleData = [
