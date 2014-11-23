@@ -8,7 +8,7 @@ object Projects extends Build {
 
   lazy val root = Project("root", file("."))
     .aggregate(kamonCore, kamonSpray, kamonNewrelic, kamonPlayground, kamonDashboard, kamonTestkit, kamonPlay, kamonStatsD,
-      kamonDatadog, kamonSystemMetrics, kamonLogReporter, kamonAkkaRemote, kamonSigar)
+      kamonDatadog, kamonSystemMetrics, kamonLogReporter, kamonAkkaRemote, kamonSigar, kamonJdbc)
     .settings(basicSettings: _*)
     .settings(formatSettings: _*)
     .settings(noPublishing: _*)
@@ -162,6 +162,16 @@ object Projects extends Build {
     .settings(basicSettings: _*)
     .settings(formatSettings: _*)
     .settings(Sigar.settings: _*)
+
+  lazy val kamonJdbc = Project("kamon-jdbc", file("kamon-jdbc"))
+    .settings(basicSettings: _*)
+    .settings(formatSettings: _*)
+    .settings(aspectJSettings: _*)
+    .settings(
+      libraryDependencies ++=
+        test(h2,scalatest, akkaTestKit, slf4Api, slf4nop) ++
+        provided(aspectJ))
+    .dependsOn(kamonCore)
 
   val noPublishing = Seq(publish := (), publishLocal := (), publishArtifact := false)
 }

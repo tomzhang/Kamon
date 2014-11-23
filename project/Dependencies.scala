@@ -38,11 +38,11 @@ object Dependencies {
   val scalaCompiler   = "org.scala-lang"            %   "scala-compiler"        % Settings.ScalaVersion
   val sigar           = "org.fusesource"            %   "sigar"                 % "1.6.4" // TODO remove
   val scalazConcurrent = "org.scalaz"               %%  "scalaz-concurrent"     % "7.1.0"
-  //
-  val sigarJar        = "org.hyperic"               %   "sigar"                 % sigarVersion withSources() withJavadoc()
+  val sigarJar        = "org.hyperic"               %   "sigar"                 % sigarVersion
   val sigarZip        = "org.hyperic"               %   "sigar-dist"            % sigarVersion
   val junit           = "junit"                     %   "junit"                 % "4.11"
   val junitInterface  = "com.novocode"              %   "junit-interface"       % "0.11"
+  val h2              = "com.h2database"            %   "h2"                    % "1.4.182"
 
   def compile   (deps: ModuleID*): Seq[ModuleID] = deps map (_ % "compile")
   def provided  (deps: ModuleID*): Seq[ModuleID] = deps map (_ % "provided")
