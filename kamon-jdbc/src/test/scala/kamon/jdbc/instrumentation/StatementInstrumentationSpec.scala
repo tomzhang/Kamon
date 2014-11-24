@@ -15,19 +15,21 @@
 
 package kamon.jdbc.instrumentation
 
-import java.sql.{DriverManager, SQLException}
+import java.sql.{ Connection, DriverManager, SQLException }
 
 import akka.actor.ActorSystem
-import akka.testkit.{TestKitBase, TestProbe}
+import akka.testkit.{ TestKitBase, TestProbe }
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
-import kamon.jdbc.SlowQueryProcessor
 import kamon.jdbc.metric.StatementsMetrics
 import kamon.jdbc.metric.StatementsMetrics.StatementsMetricsSnapshot
-import kamon.metric.Metrics
+import kamon.jdbc.{ Jdbc, SlowQueryProcessor }
 import kamon.metric.Subscriptions.TickMetricSnapshot
-import kamon.trace.TraceRecorder
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import kamon.metric.TraceMetrics.TraceMetricsSnapshot
+import kamon.metric.{ Metrics, TraceMetrics }
+import kamon.trace.{ SegmentCategory, SegmentMetricIdentity, TraceRecorder }
+import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpecLike }
+
 import scala.concurrent.duration._
 
 class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Matchers with BeforeAndAfterAll {
@@ -44,7 +46,7 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
       |}
     """.stripMargin))
 
-  val connection = DriverManager.getConnection("jdbc:h2:mem:jdbc-spec","SA", "")
+  val connection = DriverManager.getConnection("jdbc:h2:mem:jdbc-spec", "SA", "")
 
   override protected def beforeAll(): Unit = {
     connection should not be null
@@ -59,12 +61,12 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
   }
 
   "the StatementInstrumentation" should {
-    "record the execution time of the INSERT operation" in new StatementsMetricsListenerFixture {
+    "record the execution time of INSERT operation" in new StatementsMetricsListenerFixture {
       TraceRecorder.withNewTraceContext("jdbc-trace-insert") {
 
         val metricsListener = subscribeToMetrics()
 
-        for(id <- 1 to 100) {
+        for (id ← 1 to 100) {
           val insert = s"INSERT INTO Address (Nr, Name) VALUES($id, 'foo')"
           val insertStatement = connection.prepareStatement(insert)
           insertStatement.execute()
@@ -80,7 +82,7 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
 
         val metricsListener = subscribeToMetrics()
 
-        for(id <- 1 to 100) {
+        for (id ← 1 to 100) {
           val select = s"SELECT * FROM Address where Nr = $id"
           val selectStatement = connection.createStatement()
           selectStatement.execute(select)
@@ -96,8 +98,8 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
 
         val metricsListener = subscribeToMetrics()
 
-        for(id <- 1 to 100) {
-          val update  = s"UPDATE Address SET Name = 'bar$id' where Nr = $id"
+        for (id ← 1 to 100) {
+          val update = s"UPDATE Address SET Name = 'bar$id' where Nr = $id"
           val updateStatement = connection.prepareStatement(update)
           updateStatement.execute()
         }
@@ -108,12 +110,12 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
     }
 
     "record the execution time of DELETE operation" in new StatementsMetricsListenerFixture {
-      TraceRecorder.withNewTraceContext("jdbc-trace-insert") {
+      TraceRecorder.withNewTraceContext("jdbc-trace-delete") {
 
         val metricsListener = subscribeToMetrics()
 
-        for(id <- 1 to 100) {
-          val delete  = s"DELETE FROM Address where Nr = $id"
+        for (id ← 1 to 100) {
+          val delete = s"DELETE FROM Address where Nr = $id"
           val deleteStatement = connection.createStatement()
           deleteStatement.execute(delete)
         }
@@ -128,7 +130,7 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
 
         val metricsListener = subscribeToMetrics()
 
-        for(id <- 1 to 2) {
+        for (id ← 1 to 2) {
           val select = s"SELECT * FROM Address; CALL SLEEP(100)"
           val selectStatement = connection.createStatement()
           selectStatement.execute(select)
@@ -139,14 +141,14 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
       }
     }
 
-    "count the total ERRORS" in new StatementsMetricsListenerFixture {
-      TraceRecorder.withNewTraceContext("jdbc-trace-slow") {
+    "count all SQL ERRORS" in new StatementsMetricsListenerFixture {
+      TraceRecorder.withNewTraceContext("jdbc-trace-errors") {
 
         val metricsListener = subscribeToMetrics()
 
-        for(_ <- 1 to 10) {
+        for (_ ← 1 to 10) {
           intercept[SQLException] {
-            val error = "SELECT * FROM NON_EXIST_TABLE"
+            val error = "SELECT * FROM NO_EXISTENT_TABLE"
             val errorStatement = connection.createStatement()
             errorStatement.execute(error)
           }
@@ -155,10 +157,27 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
         StatementMetrics.errors.count should be(10)
       }
     }
+
+    "start and finish a JDBC segment if TraceContext is available" in new StatementsMetricsListenerFixture {
+      TraceRecorder.withNewTraceContext("H2-segment") {
+
+        for (id ← 1 to 50) {
+          val select = s"SELECT * FROM Address"
+          val selectStatement = connection.createStatement()
+          selectStatement.execute(select)
+        }
+        TraceRecorder.finish()
+      }
+
+      val snapshot = takeSnapshotOf("H2-segment")
+      snapshot.elapsedTime.numberOfMeasurements should be(1)
+      snapshot.segments.size should be(1)
+      snapshot.segments(SegmentMetricIdentity("H2-segment:jdbc", SegmentCategory.Jdbc, Jdbc.SegmentLibraryName)).numberOfMeasurements should be(50)
+    }
   }
 
   trait StatementsMetricsListenerFixture {
-    def subscribeToMetrics( ): TestProbe = {
+    def subscribeToMetrics(): TestProbe = {
       val metricsListener = TestProbe()
       Kamon(Metrics).subscribe(StatementsMetrics, "*", metricsListener.ref, permanently = true)
       // Wait for one empty snapshot before proceeding to the test.
@@ -175,10 +194,15 @@ class StatementInstrumentationSpec extends TestKitBase with WordSpecLike with Ma
     statementsMetricsOption should not be empty
     statementsMetricsOption.get.asInstanceOf[StatementsMetricsSnapshot]
   }
+
+  def takeSnapshotOf(traceName: String): TraceMetricsSnapshot = {
+    val recorder = Kamon(Metrics)(system).register(TraceMetrics(traceName), TraceMetrics.Factory)
+    val collectionContext = Kamon(Metrics)(system).buildDefaultCollectionContext
+    recorder.get.collect(collectionContext)
+  }
 }
 
 class NOPSlowQueryProcessor extends SlowQueryProcessor {
-  override def process(sql: String, executionTimeInMillis: Long, queryThresholdInMillis: Long): Unit = {/*do nothing!!!*/}
+  override def process(sql: String, executionTimeInMillis: Long, queryThresholdInMillis: Long): Unit = { /*do nothing!!!*/ }
 }
-
 

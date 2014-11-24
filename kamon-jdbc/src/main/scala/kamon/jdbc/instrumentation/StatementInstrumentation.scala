@@ -23,7 +23,7 @@ import kamon.jdbc.Jdbc
 import kamon.jdbc.metric.StatementsMetrics
 import kamon.jdbc.metric.StatementsMetrics.StatementsMetricsRecorder
 import kamon.metric.Metrics
-import kamon.trace.TraceRecorder
+import kamon.trace.{ TraceContext, SegmentCategory, TraceRecorder }
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.{ AfterThrowing, Around, Aspect, Pointcut }
 import org.slf4j.LoggerFactory
@@ -47,17 +47,19 @@ class StatementInstrumentation {
   @Around("onExecuteStatement(sql) || onExecutePreparedStatement(sql) || onExecutePreparedCall(sql)")
   def aroundExecuteStatement(pjp: ProceedingJoinPoint, sql: String): Any = {
     TraceRecorder.withTraceContextAndSystem { (ctx, system) ⇒
+      withinSegment(ctx) {
 
-      if (statementRecorder.isEmpty) {
-        statementRecorder = Kamon(Metrics)(system).register(StatementsMetrics(Statements), StatementsMetrics.Factory)
-      }
+        if (statementRecorder.isEmpty) {
+          statementRecorder = Kamon(Metrics)(system).register(StatementsMetrics(Statements), StatementsMetrics.Factory)
+        }
 
-      sql.replaceAll(CommentPattern, Empty) match {
-        case SelectStatement(_) ⇒ recordRead(pjp, sql)(system)
-        case InsertStatement(_) | UpdateStatement(_) | DeleteStatement(_) ⇒ recordWrite(pjp)
-        case anythingElse ⇒
-          log.debug(s"Unable to parse sql [$sql]")
-          pjp.proceed()
+        sql.replaceAll(CommentPattern, Empty) match {
+          case SelectStatement(_) ⇒ recordRead(pjp, sql)(system)
+          case InsertStatement(_) | UpdateStatement(_) | DeleteStatement(_) ⇒ recordWrite(pjp)
+          case anythingElse ⇒
+            log.debug(s"Unable to parse sql [$sql]")
+            pjp.proceed()
+        }
       }
     } getOrElse pjp.proceed()
   }
@@ -91,10 +93,15 @@ class StatementInstrumentation {
       statementRecorder.map(stmr ⇒ stmr.writes.record(timeSpent))
     }
   }
+
+  def withinSegment[A](ctx: TraceContext)(thunk: ⇒ A): A = {
+    val segment = ctx.startSegment(s"${ctx.name}:jdbc", SegmentCategory.Jdbc, Jdbc.SegmentLibraryName)
+    try thunk finally segment.finish()
+  }
 }
 
 object StatementInstrumentation {
-  val log = LoggerFactory.getLogger("StatementInstrumentation")
+  val log = LoggerFactory.getLogger(classOf[StatementInstrumentation])
 
   val SelectStatement = "(?i)^\\s*select.*?\\sfrom[\\s\\[]+([^\\]\\s,)(;]*).*".r
   val InsertStatement = "(?i)^\\s*insert(?:\\s+ignore)?\\s+into\\s+([^\\s(,;]*).*".r

@@ -142,6 +142,7 @@ case class SegmentData(identity: SegmentMetricIdentity, duration: Long)
 
 object SegmentCategory {
   val HttpClient = "http-client"
+  val Jdbc = "plain-jdbc"
 }
 
 sealed trait LevelOfDetail

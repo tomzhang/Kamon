@@ -23,6 +23,8 @@ import kamon.Kamon
 object Jdbc extends ExtensionId[JdbcExtension] with ExtensionIdProvider {
   override def lookup(): ExtensionId[_ <: Extension] = Jdbc
   override def createExtension(system: ExtendedActorSystem): JdbcExtension = new JdbcExtension(system)
+
+  val SegmentLibraryName: String = "plain-jdbc"
 }
 
 class JdbcExtension(system: ExtendedActorSystem) extends Kamon.Extension {
